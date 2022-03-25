@@ -13,6 +13,10 @@ const NUMBER_OF_ROWS_TO_LOOKUP_PERMISSIONS_PER_LOOP = 300;
 
 const USE_DOMAIN_ADMIN_ACCESS = true; // true or false
 
+/ configure to send simple notification to someone when the script is done
+const EMAIL_RECIPIENT_ADDRESS = 'n_young@uncg.edu'; // email addresses (comma separated)
+const EMAIL_SUBJECT_LINE = 'Appscript Google Shared Drive Audit Complete'; // email addresses (comma separated)
+
 /*
 *
 * ONLY RUN THIS ONCE TO SET THE HEADER ROWS FOR THE GOOGLE SHEETS
@@ -116,6 +120,7 @@ function job_get_permissions_for_drives() {
 
     if(values[0][0] == '') {
       console.log('source row empty. Script probably complete now.');
+      send_email_simple_(EMAIL_RECIPIENT_ADDRESS,EMAIL_SUBJECT_LINE,'Source row empty for Shared Drive Audit process. The script probably complete now.');
       return;
     }
     
@@ -171,3 +176,13 @@ function job_get_permissions_for_drives() {
   console.log('Elapsed Seconds: ' + elapsed);
  
 };
+
+function send_email_simple_(recipient,subject,plain_text_body) {
+
+  MailApp.sendEmail(
+    recipient,
+    subject,
+    plain_text_body
+  );
+
+}
