@@ -1,22 +1,20 @@
 // Google Sheet URL that you have access to edit (should be blank to begin with)
-var GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/your-id/edit";
+var GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/your-sheet-id/edit";
 // tab/sheet name to house the list of File IDs for everything in your Google Drive
 var GOOGLE_SHEET_RESULTS_TAB_NAME_DRIVES = "Sheet1";
 var GOOGLE_SHEET_RESULTS_TAB_NAME_PERMISSIONS = "Sheet2";
 
 // max results per page when looking up the google api for shared drives. Max is 100.
-const GOOGLEAPI_MAX_RESULTS_PER_PAGE = 100;
+const GOOGLEAPI_MAX_RESULTS_PER_PAGE = 5;
 // number of rows to lookup permissions for, keeping in mind potentially large results and timeout possibility
 // early testing showed it's pretty fast, with 50 rows taking about 40 seconds. Would expect this to change though.
 // Would recommend setting this in relation with the trigger for how often the script runs.
-const NUMBER_OF_ROWS_TO_LOOKUP_PERMISSIONS_PER_LOOP = 300; 
+const NUMBER_OF_ROWS_TO_LOOKUP_PERMISSIONS_PER_LOOP = 100; 
 
-// if doing this for a whole domain, set this to true (a superadmin/permitted user must run this script).
-// if doing this just for a regular user to audit their own shared drives, then set to false.
 const USE_DOMAIN_ADMIN_ACCESS = true; // true or false
 
-/ configure to send simple notification to someone when the script is done
-const EMAIL_RECIPIENT_ADDRESS = 'n_young@uncg.edu'; // email addresses (comma separated)
+// configure to send simple notification to someone when the script is done
+const EMAIL_RECIPIENT_ADDRESS = 'your-email@your.domain'; // email addresses (comma separated)
 const EMAIL_SUBJECT_LINE = 'Appscript Google Shared Drive Audit Complete'; // email addresses (comma separated)
 
 /*
@@ -121,7 +119,7 @@ function job_get_permissions_for_drives() {
   for ( i = 0; i < NUMBER_OF_ROWS_TO_LOOKUP_PERMISSIONS_PER_LOOP; i++) {
 
     if(values[0][0] == '') {
-      console.log('source row empty. Script probably complete now.');
+      console.log('Source row empty. Script probably complete now.');
       send_email_simple_(EMAIL_RECIPIENT_ADDRESS,EMAIL_SUBJECT_LINE,'Source row empty for Shared Drive Audit process. The script probably complete now.');
       return;
     }
@@ -132,6 +130,8 @@ function job_get_permissions_for_drives() {
     this_audit_date = values[i][0];
     this_drive_id = values[i][1];
     this_drive_name = values[i][2];
+
+    console.log('GETTING DRIVE NAME: ' + this_drive_name);
 
     var thisDrivePermissions = Drive.Permissions.list(
       this_drive_id,
