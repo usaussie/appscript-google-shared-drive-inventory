@@ -157,10 +157,11 @@ function job_get_permissions_for_drives() {
     ss.getRange(ss.getLastRow() + 1, 1, rowsToWrite.length, rowsToWrite[0].length).setValues(rowsToWrite);
 
     // now delete the row from the drives sheet so we dont have to process it again on the next loop
-    // (plus 2 because rows start at 1, javascript notation starts at 0, and we dont want to delete the header )
-    var rowToDelete = parseInt(i)+2;
-    //console.log('Deleting Row: ' + this_drive_name + ' (' + this_drive_id + ')');
+    // this should always be row #2, because we've deleted the previous ROW 2 during the last loop iteration
+    var rowToDelete = 2; 
     drives_sheet.deleteRow(rowToDelete);
+    //console.log('DELETING DRIVE NAME: ' + this_drive_name);
+    //console.log('DELETING ROW: ' + rowToDelete);
     
   };
 
