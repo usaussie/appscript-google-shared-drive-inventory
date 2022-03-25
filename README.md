@@ -11,3 +11,7 @@ This solution is meant to solve two fairly basic questions:
  - Can I perform an inventory on a schedule, so I can see how things change over time?
 
 This is described in full on [www.techupover.com](https://www.techupover.com/google-shared-drives-and-permissions-into-google-sheet/)
+
+# References
+
+The Drive API returns roles for each email address permitted at the top level of the shared drive. Reference for the role types can be found here: https://developers.google.com/drive/api/guides/ref-roles
