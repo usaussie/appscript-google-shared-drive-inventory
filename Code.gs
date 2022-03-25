@@ -11,6 +11,8 @@ const GOOGLEAPI_MAX_RESULTS_PER_PAGE = 100;
 // Would recommend setting this in relation with the trigger for how often the script runs.
 const NUMBER_OF_ROWS_TO_LOOKUP_PERMISSIONS_PER_LOOP = 300; 
 
+// if doing this for a whole domain, set this to true (a superadmin/permitted user must run this script).
+// if doing this just for a regular user to audit their own shared drives, then set to false.
 const USE_DOMAIN_ADMIN_ACCESS = true; // true or false
 
 / configure to send simple notification to someone when the script is done
