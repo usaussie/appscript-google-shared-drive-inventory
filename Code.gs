@@ -11,7 +11,7 @@ const GOOGLEAPI_MAX_RESULTS_PER_PAGE = 5;
 // Would recommend setting this in relation with the trigger for how often the script runs.
 const NUMBER_OF_ROWS_TO_LOOKUP_PERMISSIONS_PER_LOOP = 100; 
 
-const USE_DOMAIN_ADMIN_ACCESS = true; // true or false
+const USE_DOMAIN_ADMIN_ACCESS = true; // true for domain/super admin ..... false for regular user to use on their own shared drives
 
 // configure to send simple notification to someone when the script is done
 const EMAIL_RECIPIENT_ADDRESS = 'your-email@your.domain'; // email addresses (comma separated)
