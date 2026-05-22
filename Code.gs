@@ -1,5 +1,5 @@
 // Google Sheet URL that you have access to edit (should be blank to begin with)
-var GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/your-sheet-id/edit";
+var GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/your-sheet-id/edit?gid=0#gid=0/edit";
 // tab/sheet name to house the list of File IDs for everything in your Google Drive
 var GOOGLE_SHEET_RESULTS_TAB_NAME_DRIVES = "Sheet1";
 var GOOGLE_SHEET_RESULTS_TAB_NAME_PERMISSIONS = "Sheet2";
@@ -11,10 +11,10 @@ const GOOGLEAPI_MAX_RESULTS_PER_PAGE = 5;
 // Would recommend setting this in relation with the trigger for how often the script runs.
 const NUMBER_OF_ROWS_TO_LOOKUP_PERMISSIONS_PER_LOOP = 100; 
 
-const USE_DOMAIN_ADMIN_ACCESS = true; // true for domain/super admin ..... false for regular user to use on their own shared drives
+const USE_DOMAIN_ADMIN_ACCESS = false; // true for domain/super admin ..... false for regular user to use on their own shared drives
 
 // configure to send simple notification to someone when the script is done
-const EMAIL_RECIPIENT_ADDRESS = 'your-email@your.domain'; // email addresses (comma separated)
+const EMAIL_RECIPIENT_ADDRESS = 'your-email@your-domain.com'; // email addresses (comma separated)
 const EMAIL_SUBJECT_LINE = 'Appscript Google Shared Drive Audit Complete'; // email addresses (comma separated)
 
 /*
@@ -41,56 +41,48 @@ function job_set_sheet_headers() {
 *
 */
 function job_get_shared_drives_list() {
-
   var startTime = new Date().getTime();
-
   var audit_timestamp = Utilities.formatDate(new Date(), "UTC", "yyyy-MM-dd'T'HH:mm:ss'Z'");
-
-  var newRow = [];
   var rowsToWrite = [];
-  
-  let sharedDrives = Drive.Drives.list({
-          maxResults: GOOGLEAPI_MAX_RESULTS_PER_PAGE,
-          useDomainAdminAccess: USE_DOMAIN_ADMIN_ACCESS,
-          hidden: false,
-        });
+  var pageToken = null;
 
-  let sharedDrivesItems = sharedDrives.items;
-  
-  // If a next page token exists then iterate through again. 
-  while(sharedDrives.nextPageToken){
-    sharedDrives = Drive.Drives.list(
-      {
-        pageToken:sharedDrives.nextPageToken,
-        maxResults: GOOGLEAPI_MAX_RESULTS_PER_PAGE,
-        useDomainAdminAccess: USE_DOMAIN_ADMIN_ACCESS,
-        hidden: false,
-      }
-    );
+  do {
+    var response = Drive.Drives.list({
+      maxResults: GOOGLEAPI_MAX_RESULTS_PER_PAGE, // Drive API v2
+      pageSize: GOOGLEAPI_MAX_RESULTS_PER_PAGE,   // Drive API v3-safe
+      pageToken: pageToken,
+      useDomainAdminAccess: USE_DOMAIN_ADMIN_ACCESS,
+      hidden: false,
+      fields: "*"
+    });
 
-    sharedDrivesItems = sharedDrivesItems.concat(sharedDrives.items)
-    //console.log(sharedDrives.items);
-    //console.log(sharedDrivesItems.length);
+    var drives = response.items || response.drives || [];
 
+    drives.forEach(function(drive) {
+      rowsToWrite.push([
+        audit_timestamp,
+        drive.id,
+        drive.name
+      ]);
+    });
+
+    pageToken = response.nextPageToken;
+
+  } while (pageToken);
+
+  if (rowsToWrite.length === 0) {
+    console.log("No shared drives found.");
+    return;
   }
 
-  //console.log(sharedDrivesItems);
+  var sheet = SpreadsheetApp.openByUrl(GOOGLE_SHEET_URL)
+    .getSheetByName(GOOGLE_SHEET_RESULTS_TAB_NAME_DRIVES);
 
-  sharedDrivesItems.forEach(function(value) {
-    var newRow = [audit_timestamp, value.id, value.name];
-    // add to row array instead of append because append is SLOOOOOWWWWW
-    rowsToWrite.push(newRow);
-    //console.log(newRow);
-  });
+  sheet
+    .getRange(sheet.getLastRow() + 1, 1, rowsToWrite.length, rowsToWrite[0].length)
+    .setValues(rowsToWrite);
 
-  var ss = SpreadsheetApp.openByUrl(GOOGLE_SHEET_URL).getSheetByName(GOOGLE_SHEET_RESULTS_TAB_NAME_DRIVES);
-  ss.getRange(ss.getLastRow() + 1, 1, rowsToWrite.length, rowsToWrite[0].length).setValues(rowsToWrite);
-
-  var endTime = new Date().getTime();
-
-  var elapsed = (endTime-startTime)/1000;
-  console.log('Elapsed Seconds: ' + elapsed);
-
+  console.log('Elapsed Seconds: ' + ((new Date().getTime() - startTime) / 1000));
 }
 
 /*
@@ -102,81 +94,86 @@ function job_get_shared_drives_list() {
 *
 */
 function job_get_permissions_for_drives() {
-  
   var startTime = new Date().getTime();
-  
-  var drives_sheet = SpreadsheetApp.openByUrl(GOOGLE_SHEET_URL).getSheetByName(GOOGLE_SHEET_RESULTS_TAB_NAME_DRIVES);
-  var rangeData = drives_sheet.getDataRange();
-  var lastColumn = rangeData.getLastColumn();
-  var lastRow = rangeData.getLastRow();
-  var searchRange = drives_sheet.getRange(2,1, NUMBER_OF_ROWS_TO_LOOKUP_PERMISSIONS_PER_LOOP, lastColumn);
-  
-  // Get array of values in the search Range
-  var values = searchRange.getValues();
-  // console.log("values");
-  // console.log(values);
-  // Loop through array and if condition met, do relevant permissions lookup
-  for ( i = 0; i < NUMBER_OF_ROWS_TO_LOOKUP_PERMISSIONS_PER_LOOP; i++) {
 
-    if(values[0][0] == '') {
-      console.log('Source row empty. Script probably complete now.');
-      send_email_simple_(EMAIL_RECIPIENT_ADDRESS,EMAIL_SUBJECT_LINE,'Source row empty for Shared Drive Audit process. The script probably complete now.');
-      return;
+  var spreadsheet = SpreadsheetApp.openByUrl(GOOGLE_SHEET_URL);
+  var drives_sheet = spreadsheet.getSheetByName(GOOGLE_SHEET_RESULTS_TAB_NAME_DRIVES);
+  var permissions_sheet = spreadsheet.getSheetByName(GOOGLE_SHEET_RESULTS_TAB_NAME_PERMISSIONS);
+
+  var lastRow = drives_sheet.getLastRow();
+  var lastColumn = drives_sheet.getLastColumn();
+
+  if (lastRow < 2) {
+    console.log('No source rows left. Script probably complete now.');
+    send_email_simple_(EMAIL_RECIPIENT_ADDRESS, EMAIL_SUBJECT_LINE, 'Shared Drive Audit process appears complete.');
+    return;
+  }
+
+  var rowsToProcess = Math.min(NUMBER_OF_ROWS_TO_LOOKUP_PERMISSIONS_PER_LOOP, lastRow - 1);
+  var values = drives_sheet.getRange(2, 1, rowsToProcess, lastColumn).getValues();
+  var allPermissionRows = [];
+
+  for (var i = 0; i < values.length; i++) {
+    var this_audit_date = values[i][0];
+    var this_drive_id = values[i][1];
+    var this_drive_name = values[i][2];
+
+    if (!this_drive_id) {
+      continue;
     }
-    
-    var newRow = [];
-    var rowsToWrite = [];
-    
-    this_audit_date = values[i][0];
-    this_drive_id = values[i][1];
-    this_drive_name = values[i][2];
 
     console.log('GETTING DRIVE NAME: ' + this_drive_name);
 
-    var thisDrivePermissions = Drive.Permissions.list(
-      this_drive_id,
-      {
+    var pageToken = null;
+    var foundPermissions = false;
+
+    do {
+      var response = Drive.Permissions.list(this_drive_id, {
         useDomainAdminAccess: USE_DOMAIN_ADMIN_ACCESS,
-        supportsAllDrives: true
-      } 
-    );
-
-    //now loop through each permission item
-    var newRow = [];
-    if(thisDrivePermissions.items.length >= 1) {
-        //console.log('permissions were not empty');
-        thisDrivePermissions.items.forEach(function(value) {
-        //console.log(value);
-        newRow = [this_audit_date, this_drive_id, this_drive_name, value.emailAddress, value.type, value.role];
-        // add to row array instead of append because appending each one at a time is SLOOOOOWWWWW
-        
+        supportsAllDrives: true,
+        pageToken: pageToken,
+        fields: "*"
       });
-    } else {
-        console.log('permissions were empty');
-        newRow = [this_audit_date, this_drive_id, this_drive_name, 'ORPHAN', 'ORPHAN', 'ORPHAN'];
+
+      var permissions = response.items || response.permissions || [];
+
+      permissions.forEach(function(permission) {
+        foundPermissions = true;
+        allPermissionRows.push([
+          this_audit_date,
+          this_drive_id,
+          this_drive_name,
+          permission.emailAddress || '',
+          permission.type || '',
+          permission.role || ''
+        ]);
+      });
+
+      pageToken = response.nextPageToken;
+
+    } while (pageToken);
+
+    if (!foundPermissions) {
+      allPermissionRows.push([
+        this_audit_date,
+        this_drive_id,
+        this_drive_name,
+        'ORPHAN',
+        'ORPHAN',
+        'ORPHAN'
+      ]);
     }
+  }
 
-    rowsToWrite.push(newRow);
-    //console.log(newRow);
-    
-    // write the permissions items to the permissions tab
-    var ss = SpreadsheetApp.openByUrl(GOOGLE_SHEET_URL).getSheetByName(GOOGLE_SHEET_RESULTS_TAB_NAME_PERMISSIONS);
-    ss.getRange(ss.getLastRow() + 1, 1, rowsToWrite.length, rowsToWrite[0].length).setValues(rowsToWrite);
+  if (allPermissionRows.length > 0) {
+    permissions_sheet
+      .getRange(permissions_sheet.getLastRow() + 1, 1, allPermissionRows.length, allPermissionRows[0].length)
+      .setValues(allPermissionRows);
+  }
 
-    // now delete the row from the drives sheet so we dont have to process it again on the next loop
-    // this should always be row #2, because we've deleted the previous ROW 2 during the last loop iteration
-    var rowToDelete = 2; 
-    drives_sheet.deleteRow(rowToDelete);
-    //console.log('DELETING DRIVE NAME: ' + this_drive_name);
-    //console.log('DELETING ROW: ' + rowToDelete);
-    
-  };
+  drives_sheet.deleteRows(2, rowsToProcess);
 
-  var endTime = new Date().getTime();
-
-  var elapsed = (endTime-startTime)/1000;
-  console.log('Elapsed Seconds: ' + elapsed);
- 
+  console.log('Elapsed Seconds: ' + ((new Date().getTime() - startTime) / 1000));
 };
 
 function send_email_simple_(recipient,subject,plain_text_body) {
